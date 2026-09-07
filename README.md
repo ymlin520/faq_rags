@@ -36,8 +36,8 @@
 ### 三行版快速開始
 
 ```powershell
-git clone https://github.com/yufan-code/rags.git
-cd rags
+git clone https://github.com/ymlin520/faq_rags.git
+cd faq_rags
 Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
 ```
 
@@ -140,8 +140,8 @@ FAQ、工單及向量資料預設只存於執行系統的 Windows 電腦。不�
 ### 1. 下載專案
 
 ```powershell
-git clone https://github.com/yufan-code/rags.git
-cd rags
+git clone https://github.com/ymlin520/faq_rags.git
+cd faq_rags
 ```
 
 也可以在 GitHub 選擇 `Code` → `Download ZIP`，解壓縮後在專案資料夾開啟 PowerShell。
