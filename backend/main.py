@@ -7,14 +7,14 @@ import re
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import BackgroundTasks, Body, FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import COLLECTION_NAME, EMBEDDING_MODEL, PROJECT_ROOT
 from .embedding import embed_text
 from .llm_service import OLLAMA_MODEL, answer_from_faq, ollama_status, route_ticket_office
-from .knowledge_service import sync_resolved_ticket
+from .knowledge_service import faq_categories, sync_resolved_ticket
 from .analytics import add_ticket_reply, create_ticket, list_tickets, log_feedback, log_query, public_ticket, rate_ticket, record_knowledge_sync, record_student_email, record_ticket_email, stats, ticket_detail, update_ticket
 from .mail_service import (mail_status, save_office_emails, save_password, save_settings,
                            send_student_resolution_email, send_test_email, send_ticket_email)
@@ -22,6 +22,7 @@ from .models import (AnswerResponse, FeedbackRequest, FeedbackResponse, MailSett
                      MailTestRequest, OfficeMailRequest, SearchRequest, SearchResponse, TicketCreateRequest,
                      TicketRateRequest, TicketReplyRequest, TicketUpdateRequest)
 from .qdrant_service import check_connection, close_client, collection_info, search_faq
+from . import theme_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("vector-faq")
@@ -66,6 +67,61 @@ def ticket_page(ticket_no: str) -> FileResponse:
     return FileResponse(frontend / "ticket.html")
 
 
+@app.get("/design", include_in_schema=False)
+def design_page() -> FileResponse:
+    """外觀 / 文案管理後台。"""
+    return FileResponse(frontend / "design-admin.html", headers={"Cache-Control": "no-store, max-age=0"})
+
+
+@app.get("/site-theme.css", include_in_schema=False)
+def site_theme_css() -> Response:
+    return Response(content=theme_service.build_css(), media_type="text/css",
+                    headers={"Cache-Control": "no-store, max-age=0"})
+
+
+@app.get("/api/site-config")
+def site_config_public():
+    """前台載入用：只回傳文案與選單，不含設定介面資訊。"""
+    cfg = theme_service.load_config()
+    return {"text": cfg["text"], "suggestions": cfg["suggestions"],
+            "categories": cfg["categories"], "updated_at": cfg["updated_at"]}
+
+
+def require_design(token: str) -> None:
+    if not theme_service.check_token(token):
+        raise HTTPException(status_code=401, detail="外觀後台密碼不正確")
+
+
+@app.post("/api/design/login")
+def design_login(payload: dict = Body(default={})):
+    token = str(payload.get("token", ""))
+    require_design(token)
+    return {"ok": True}
+
+
+@app.get("/api/design/config")
+def design_config_get(x_design_token: str = Header(default="")):
+    require_design(x_design_token)
+    cfg = theme_service.load_config()
+    return {"config": cfg, "theme_fields": theme_service.theme_fields(),
+            "text_fields": theme_service.text_fields()}
+
+
+@app.put("/api/design/config")
+def design_config_save(payload: dict = Body(default={}), x_design_token: str = Header(default="")):
+    require_design(x_design_token)
+    cfg = theme_service.save_config(payload)
+    logger.info("更新前台外觀設定 updated_at=%s", cfg["updated_at"])
+    return {"config": cfg}
+
+
+@app.post("/api/design/reset")
+def design_config_reset(x_design_token: str = Header(default="")):
+    require_design(x_design_token)
+    logger.info("前台外觀設定已還原為預設")
+    return {"config": theme_service.reset_config()}
+
+
 def require_admin(token: str) -> None:
     expected = os.getenv("FAQ_ADMIN_TOKEN", "")
     if not expected or token != expected:
@@ -98,6 +154,16 @@ def health():
     except Exception as exc:
         logger.exception("健康檢查失敗")
         raise HTTPException(status_code=503, detail=f"Qdrant 或 Collection 無法使用：{exc}") from exc
+
+
+@app.get("/api/categories")
+def categories(limit: int = 8):
+    """側欄分類與每類的代表問題，供前端點選分類後直接列出問題。"""
+    try:
+        return {"categories": faq_categories(max(1, min(limit, 20)))}
+    except Exception as exc:
+        logger.exception("讀取 FAQ 分類失敗")
+        raise HTTPException(status_code=503, detail=f"無法讀取 FAQ 分類：{exc}") from exc
 
 
 @app.post("/api/search", response_model=SearchResponse)

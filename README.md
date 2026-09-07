@@ -6,11 +6,40 @@
 
 > 本專案是 Windows 單機／原型驗證版。正式上線前，建議串接學校會員系統、正式網域、權限控管、備份及資安機制。
 
+## 目錄
+
+- [功能總覽](#功能總覽)
+- [系統架構](#系統架構)
+- [使用技術](#使用技術)
+- [系統需求](#系統需求)
+- [快速開始](#快速開始)（安裝、啟動、密碼位置、停止）
+- [FAQ CSV](#faq-csv)
+- [工單流程](#工單流程)
+- [Email 設定](#email-設定)
+- [Cloudflare 臨時公開](#cloudflare-臨時公開)
+- [資料位置與備份](#資料位置與備份)
+- [專案結構](#專案結構)
+- [API 摘要](#api-摘要)
+- [健康檢查](#健康檢查)
+- [常見問題](#常見問題)
+- [安全注意事項](#安全注意事項)
+
+### 三行版快速開始
+
+```powershell
+git clone https://github.com/yufan-code/rags.git
+cd rags
+Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
+```
+
+需先安裝 Python 3.11+ 與 [Ollama for Windows](https://ollama.com/download/windows)。首次安裝需下載模型，約數分鐘。完成後瀏覽器會自動開啟 <http://127.0.0.1:8001>，管理員密碼寫在 `admin-token.txt`。
+
 ## 功能總覽
 
 ### 學生端
 
-- 依分類瀏覽及使用自然語句搜尋 FAQ。
+- 側欄分類直接讀取 `data/faq.csv` 的實際分類（`GET /api/categories`），點選分類後在對話區列出該類常見問題，不需自行輸入。
+- 也可以直接用自然語句搜尋 FAQ。
 - 本機 AI 只根據搜尋到的 FAQ 整理回答。
 - 可查看來源 FAQ、相似度及官方連結。
 - 知識庫沒有答案時，一鍵匿名建立工單，不需姓名或 Email。
@@ -89,8 +118,8 @@ FAQ、工單及向量資料預設只存於執行系統的 Windows 電腦。不�
 ### 1. 下載專案
 
 ```powershell
-git clone https://github.com/ymlin520/shu_rags.git
-cd shu_rags
+git clone https://github.com/yufan-code/rags.git
+cd rags
 ```
 
 也可以在 GitHub 選擇 `Code` → `Download ZIP`，解壓縮後在專案資料夾開啟 PowerShell。
@@ -260,13 +289,15 @@ cloudflared tunnel --url http://127.0.0.1:8001
 | `gmail-oauth-client.json` | OAuth 用戶端憑證 | 否 |
 | `gmail-oauth-token.json` | Gmail OAuth 權杖 | 否 |
 | `default-email.txt` | 單機評分測試信箱 | 否 |
+| `data/site-config.json` | 前台外觀與文案設定 | 否 |
+| `theme-admin-token.txt` | 外觀設定頁密碼 | 否 |
 
 建議停止服務後備份 `data/faq.csv`、`data/analytics.db`、Email 設定與必要憑證。`data/qdrant-local` 可不備份，因為能從 FAQ CSV 重新建立。
 
 ## 專案結構
 
 ```text
-shu_rags/
+rags/
 ├─ backend/
 │  ├─ main.py                 FastAPI 路由與權限
 │  ├─ analytics.py            SQLite 工單、評分與統計
@@ -274,7 +305,8 @@ shu_rags/
 │  ├─ qdrant_service.py       本機向量庫
 │  ├─ llm_service.py          Ollama 回答與處室分派
 │  ├─ mail_service.py         Gmail／SMTP 通知
-│  └─ knowledge_service.py    已解決工單回寫 FAQ
+│  ├─ knowledge_service.py    已解決工單回寫 FAQ 與分類清單
+│  └─ theme_service.py        前台外觀與文案設定（開發中）
 ├─ frontend/                  學生、處室及管理員頁面
 ├─ scripts/                   匯入、搜尋及健康檢查
 ├─ data/faq.csv               FAQ 來源
@@ -291,6 +323,7 @@ shu_rags/
 | 方法 | 路徑 | 說明 |
 |---|---|---|
 | `GET` | `/api/health` | FAQ 數量、向量庫及 Ollama 狀態 |
+| `GET` | `/api/categories` | 側欄分類與各類代表問題（參數 `limit`，1～20） |
 | `POST` | `/api/search` | FAQ 語意搜尋 |
 | `POST` | `/api/ask` | 搜尋後由 Ollama 整理回答 |
 | `POST` | `/api/tickets` | 建立並分派工單 |
@@ -365,6 +398,7 @@ Get-NetTCPConnection -LocalPort 8001
 
 ## 安全注意事項
 
+- **服務預設只綁 `127.0.0.1`**，僅本機可連。若要讓同區網其他電腦連入，需自行把 `start.ps1` 的 `--host` 改為 `0.0.0.0`；但本系統沒有正式登入機制，開放前請先評估風險。
 - 不要提交 `.gitignore` 已排除的密碼、OAuth、資料庫及 Email 設定。
 - 不要把管理員或處室密碼提供給學生。
 - 工單連結包含存取碼，不應公開分享。
@@ -382,6 +416,10 @@ Get-NetTCPConnection -LocalPort 8001
 - 附件、SLA、催辦與通知排程。
 - FAQ 審核流程，避免未審核回答直接公開。
 
+### 開發中
+
+`backend/theme_service.py` 提供前台外觀（配色、字級、圓角）與所有介面文案的設定讀寫，後端 API 與 `/site-theme.css` 動態樣式已可運作，但對應的設定畫面尚未完成，因此這部分暫不列入正式功能。
+
 ## GitHub 上傳前檢查
 
 ```powershell
@@ -389,7 +427,7 @@ git status
 git ls-files
 ```
 
-確認沒有追蹤：`admin-token.txt`、`office-tokens.json`、`office-login-codes.txt`、Gmail OAuth JSON、`data/analytics.db`、`data/qdrant-local/` 或 `public-url.txt`。
+確認沒有追蹤：`admin-token.txt`、`office-tokens.json`、`office-login-codes.txt`、`各處室與後台連結密碼.txt`、Gmail OAuth JSON、`data/analytics.db`、`data/qdrant-local/` 或 `public-url.txt`。以上皆已列入 `.gitignore`。
 
 ## 授權與資料權利
 

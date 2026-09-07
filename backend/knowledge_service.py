@@ -49,3 +49,35 @@ def sync_resolved_ticket(ticket: dict) -> dict[str, str]:
     upsert_faqs([record], [embed_text(text)])
     _save_csv(record)
     return record
+
+
+_CATEGORY_CACHE: dict = {"mtime": None, "groups": []}
+
+
+def _load_groups() -> list[dict]:
+    if not CSV_PATH.exists():
+        return []
+    mtime = CSV_PATH.stat().st_mtime
+    if _CATEGORY_CACHE["mtime"] != mtime:
+        groups: dict[str, list[dict[str, str]]] = {}
+        with CSV_PATH.open("r", encoding="utf-8-sig", newline="") as source:
+            for row in csv.DictReader(source):
+                question = str(row.get("question") or "").strip()
+                if not question:
+                    continue
+                category = str(row.get("category") or "").strip() or "其他"
+                items = groups.setdefault(category, [])
+                if not any(item["question"] == question for item in items):
+                    items.append({"id": str(row.get("id") or ""), "question": question})
+        _CATEGORY_CACHE["groups"] = [{"category": name, "questions": items} for name, items in groups.items()]
+        _CATEGORY_CACHE["mtime"] = mtime
+    return _CATEGORY_CACHE["groups"]
+
+
+def faq_categories(limit: int = 8) -> list[dict]:
+    """依 faq.csv 的分類回傳每類的代表問題，供前端側欄快速選單使用。"""
+    return [
+        {"category": group["category"], "total": len(group["questions"]),
+         "questions": [item["question"] for item in group["questions"][:limit]]}
+        for group in _load_groups() if group["questions"]
+    ]
