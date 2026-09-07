@@ -17,7 +17,7 @@ if (-not (Test-Path '.\data\qdrant-local\collection\school_faq\storage.sqlite'))
 }
 $existing = Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue
 if (-not $existing) {
-  $proc = Start-Process '.\.venv\Scripts\python.exe' -ArgumentList '-m','uvicorn','backend.main:app','--host','127.0.0.1','--port','8001' -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput '.\server.out.log' -RedirectStandardError '.\server.err.log' -PassThru
+  $proc = Start-Process '.\.venv\Scripts\python.exe' -ArgumentList '-m','uvicorn','backend.main:app','--host','0.0.0.0','--port','8001' -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput '.\server.out.log' -RedirectStandardError '.\server.err.log' -PassThru
   Set-Content '.\backend.pid' $proc.Id -Encoding ascii
 }
 $ready = $false
