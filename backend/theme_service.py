@@ -164,6 +164,10 @@ def _clean_theme(raw: dict) -> dict:
     return theme
 
 
+def clean_theme(raw: dict) -> dict:
+    return _clean_theme(raw if isinstance(raw, dict) else {})
+
+
 def _clean_css(raw) -> str:
     css = str(raw or "")[:20000]
     css = re.sub(r"@import[^;]*;?", "", css, flags=re.I)

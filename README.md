@@ -23,6 +23,7 @@
 - [健康檢查](#健康檢查)
 - [常見問題](#常見問題)
 - [安全注意事項](#安全注意事項)
+- [授權與資料權利](#授權與資料權利)
 
 ### 三行版快速開始
 
@@ -66,6 +67,16 @@ Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
 - 可設定各處室通知信箱，以及一個或多個學生回覆完成通知信箱。
 - 可新增、移除學生通知收件人、測試寄信及匯出 CSV。
 
+### 外觀設定端
+
+- 進入 `/design` 可用管理員密碼登入，不需改程式碼就能調整學生端外觀。
+- 可調整配色、字體、字級、圓角、按鈕與對話框樣式。
+- 可改寫學生端所有介面文案（標題、歡迎語、按鈕、工單視窗欄位名稱等）。
+- 可自訂側欄分類與範例問題清單。
+- 可加入自訂 CSS；儲存前會先過濾 `@import` 與 `</style>` 等危險寫法。
+- 支援即時預覽，滿意再儲存；也可一鍵還原預設值。
+- 設定寫入 `data/site-config.json`，由 `/site-theme.css` 動態套用。
+
 ### Email 與知識庫成長
 
 - 新工單自動寄至 AI 判斷的承辦處室。
@@ -86,6 +97,7 @@ FastAPI（127.0.0.1:8001）
     ├─ Qdrant Local 本機向量庫
     ├─ Ollama qwen2.5:3b（回答與工單分派）
     ├─ SQLite（工單、事件、評分與統計）
+    ├─ site-config.json（前台外觀與文案）
     └─ Gmail OAuth／SMTP（通知信）
 ```
 
@@ -154,6 +166,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 | 學生版 | <http://127.0.0.1:8001/?student=1> | FAQ、建立工單、查看結果 |
 | 處室版 | <http://127.0.0.1:8001/office> | 處室回覆、結案及轉單 |
 | 管理員版 | <http://127.0.0.1:8001/admin> | 全校工單、統計及設定 |
+| 外觀設定 | <http://127.0.0.1:8001/design> | 學生端配色、文案與分類設定 |
 | 健康檢查 | <http://127.0.0.1:8001/api/health> | FAQ、向量庫與 Ollama 狀態 |
 | API 文件 | <http://127.0.0.1:8001/docs> | FastAPI Swagger 文件 |
 
@@ -162,6 +175,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 - 管理員密碼：`admin-token.txt`
 - 處室密碼清單：`office-login-codes.txt`
 - 程式使用的處室密碼：`office-tokens.json`
+- 外觀設定頁密碼：管理員密碼即可登入；系統也會自動產生一組專用密碼於 `theme-admin-token.txt`
 
 這些檔案由安裝程式產生並已加入 `.gitignore`，不可上傳或公開。
 
@@ -306,7 +320,7 @@ rags/
 │  ├─ llm_service.py          Ollama 回答與處室分派
 │  ├─ mail_service.py         Gmail／SMTP 通知
 │  ├─ knowledge_service.py    已解決工單回寫 FAQ 與分類清單
-│  └─ theme_service.py        前台外觀與文案設定（開發中）
+│  └─ theme_service.py        前台外觀與文案設定
 ├─ frontend/                  學生、處室及管理員頁面
 ├─ scripts/                   匯入、搜尋及健康檢查
 ├─ data/faq.csv               FAQ 來源
@@ -331,6 +345,11 @@ rags/
 | `POST` | `/api/tickets/{ticket_no}/rating` | 提交星級評分 |
 | `GET` | `/api/office/tickets` | 處室工單清單 |
 | `PATCH` | `/api/office/tickets/{ticket_no}` | 處室回覆、結案或轉派 |
+| `GET` | `/api/site-config` | 前台文案與外觀設定（公開） |
+| `GET` | `/api/design/config` | 外觀設定與可調欄位清單 |
+| `PUT` | `/api/design/config` | 儲存外觀與文案設定 |
+| `POST` | `/api/design/preview.css` | 產生預覽 CSS，不寫入檔案 |
+| `POST` | `/api/design/reset` | 還原預設外觀 |
 | `GET` | `/api/admin/stats` | 管理統計 |
 | `GET` | `/api/admin/tickets.csv` | 匯出工單 CSV |
 
@@ -415,10 +434,6 @@ Get-NetTCPConnection -LocalPort 8001
 - 自有網域與 Cloudflare Named Tunnel。
 - 附件、SLA、催辦與通知排程。
 - FAQ 審核流程，避免未審核回答直接公開。
-
-### 開發中
-
-`backend/theme_service.py` 提供前台外觀（配色、字級、圓角）與所有介面文案的設定讀寫，後端 API 與 `/site-theme.css` 動態樣式已可運作，但對應的設定畫面尚未完成，因此這部分暫不列入正式功能。
 
 ## GitHub 上傳前檢查
 

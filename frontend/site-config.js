@@ -19,15 +19,13 @@
     var box = document.getElementById('sc-suggestions');
     var rows = (cfg && cfg.suggestions) || [];
     if (!box || !rows.length) return;
-    box.innerHTML = rows.map(function (row) {
-      var label = String(row.label || '');
-      var query = String(row.query || row.label || '');
-      var d = document.createElement('div');
-      d.textContent = query;
-      var q = d.innerHTML;
-      d.textContent = label;
-      return '<button data-example="' + q + '">' + d.innerHTML + '</button>';
-    }).join('');
+    box.textContent = '';
+    rows.forEach(function (row) {
+      var btn = document.createElement('button');
+      btn.dataset.example = String(row.query || row.label || '');
+      btn.textContent = String(row.label || '');
+      box.appendChild(btn);
+    });
   }
 
   /* 分類顯示名稱覆寫（key = 知識庫分類名稱，label = 前台顯示文字）。 */

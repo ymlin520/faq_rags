@@ -22,3 +22,5 @@ backup/
 *.txt.bak
 theme-admin-token.txt
 data/site-config.json
+frontend/_selftest*
+frontend/__selftest*

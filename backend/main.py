@@ -11,9 +11,9 @@ from fastapi import BackgroundTasks, Body, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import COLLECTION_NAME, EMBEDDING_MODEL, PROJECT_ROOT
+from .config import COLLECTION_NAME, PROJECT_ROOT
 from .embedding import embed_text
-from .llm_service import OLLAMA_MODEL, answer_from_faq, ollama_status, route_ticket_office
+from .llm_service import answer_from_faq, ollama_status, route_ticket_office
 from .knowledge_service import faq_categories, sync_resolved_ticket
 from .analytics import add_ticket_reply, create_ticket, list_tickets, log_feedback, log_query, public_ticket, rate_ticket, record_knowledge_sync, record_student_email, record_ticket_email, stats, ticket_detail, update_ticket
 from .mail_service import (mail_status, save_office_emails, save_password, save_settings,
@@ -115,6 +115,18 @@ def design_config_save(payload: dict = Body(default={}), x_design_token: str = H
     return {"config": cfg}
 
 
+@app.post("/api/design/preview.css")
+def design_preview_css(payload: dict = Body(default={}), x_design_token: str = Header(default="")):
+    """後台即時預覽用：依傳入的設定產生 CSS，但不寫入檔案。"""
+    require_design(x_design_token)
+    cfg = theme_service.load_config()
+    if isinstance(payload.get("theme"), dict):
+        cfg["theme"] = theme_service.clean_theme(payload["theme"])
+    if "custom_css" in payload:
+        cfg["custom_css"] = str(payload["custom_css"] or "")[:20000]
+    return Response(content=theme_service.build_css(cfg), media_type="text/css")
+
+
 @app.post("/api/design/reset")
 def design_config_reset(x_design_token: str = Header(default="")):
     require_design(x_design_token)
@@ -148,8 +160,7 @@ def health():
             "qdrant": "connected",
             "collection": COLLECTION_NAME,
             "points": info.points_count or 0,
-            "embedding_model": EMBEDDING_MODEL,
-            "llm": ollama_status(),
+            "llm": {key: value for key, value in ollama_status().items() if key != "model"},
         }
     except Exception as exc:
         logger.exception("健康檢查失敗")
@@ -187,7 +198,7 @@ def ask(request: SearchRequest):
         results = search_faq(embed_text(request.query), max(request.limit, 5))
         log_query(request.query, results)
         if not results:
-            return {"query": request.query, "answer": "目前知識庫沒有足夠資訊，建議洽詢系辦公室確認。", "results": [], "generated": False, "model": OLLAMA_MODEL, "notice": "未找到相關 FAQ", "followups": [], "steps": []}
+            return {"query": request.query, "answer": "目前知識庫沒有足夠資訊，建議洽詢系辦公室確認。", "results": [], "generated": False, "model": "", "notice": "未找到相關 FAQ", "followups": [], "steps": []}
         try:
             answer = answer_from_faq(request.query, results[:5])
             generated, notice = True, ""
@@ -206,7 +217,7 @@ def ask(request: SearchRequest):
         steps = [part.strip(" -•\t") for part in answer.splitlines() if part.strip()]
         if len(steps) < 2:
             steps = []
-        return {"query": request.query, "answer": answer, "results": results[:3], "generated": generated, "model": OLLAMA_MODEL, "notice": notice, "followups": followups, "steps": steps[:6]}
+        return {"query": request.query, "answer": answer, "results": results[:3], "generated": generated, "model": "", "notice": notice, "followups": followups, "steps": steps[:6]}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

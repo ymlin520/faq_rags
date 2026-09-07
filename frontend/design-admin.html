@@ -1,0 +1,90 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>前台外觀後台 · 校務 FAQ</title>
+<link rel="stylesheet" href="/static/design-admin.css?v=20260907">
+</head><body>
+
+<div id="login" class="login-wrap">
+  <form id="login-form" class="login-card">
+    <div class="login-mark">FAQ</div>
+    <h1>前台外觀後台</h1>
+    <p>修改學生前台的標題、文案、顏色與 CSS。</p>
+    <label>後台密碼<input id="login-token" type="password" autocomplete="current-password" required></label>
+    <p id="login-error" class="login-error"></p>
+    <button type="submit">登入</button>
+    <small>此密碼與「總管理員後台」分開管理，可獨立交給美編或行政人員。</small>
+  </form>
+</div>
+
+<div id="app" class="app" hidden>
+  <header class="bar">
+    <div class="bar-brand"><span class="bar-mark">FAQ</span><div><strong>前台外觀後台</strong><small id="saved-at">尚未儲存</small></div></div>
+    <div class="bar-actions">
+      <a class="ghost" href="/" target="_blank" rel="noopener">開啟前台 ↗</a>
+      <button id="btn-reset" class="ghost danger" type="button">全部還原預設</button>
+      <button id="btn-save" class="primary" type="button">儲存並套用</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="editor">
+      <nav class="tabs">
+        <button class="tab active" data-tab="text" type="button">文案 / 標題</button>
+        <button class="tab" data-tab="theme" type="button">顏色與樣式</button>
+        <button class="tab" data-tab="lists" type="button">分類與快捷</button>
+        <button class="tab" data-tab="css" type="button">自訂 CSS</button>
+      </nav>
+
+      <div class="tab-panel" data-panel="text">
+        <p class="hint">改完之後右側會即時預覽，按「儲存並套用」才會真正上線。欄位留空會自動回到預設文字。</p>
+        <div id="text-fields"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="theme" hidden>
+        <p class="hint">顏色可直接點色塊挑選，或輸入 <code>#RRGGBB</code>。數字欄位單位為 px。</p>
+        <div class="preset-row">
+          <span>快速配色：</span>
+          <button class="preset" data-preset="warm" type="button">原始暖橘</button>
+          <button class="preset" data-preset="blue" type="button">校園藍</button>
+          <button class="preset" data-preset="green" type="button">沉穩綠</button>
+          <button class="preset" data-preset="dark" type="button">深色模式</button>
+        </div>
+        <div id="theme-fields"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="lists" hidden>
+        <h2>側欄分類</h2>
+        <p class="hint">「分類代碼」要對應知識庫裡的分類名稱，前台才能列出該分類的問題；「顯示名稱」是學生看到的文字。整份留空 = 使用系統自動產生的分類。</p>
+        <div class="row-actions"><button id="load-categories" class="ghost" type="button">帶入目前知識庫分類</button><button id="add-category" class="ghost" type="button">＋ 新增一列</button></div>
+        <div id="category-rows" class="rows"></div>
+
+        <h2>對話區快捷問題</h2>
+        <p class="hint">顯示在歡迎訊息下方的小圓鈕。「顯示文字」是按鈕上的字，「送出問題」是點下去實際問的內容。</p>
+        <div class="row-actions"><button id="add-suggestion" class="ghost" type="button">＋ 新增一列</button></div>
+        <div id="suggestion-rows" class="rows"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="css" hidden>
+        <p class="hint">這裡寫的 CSS 會加在最後面，可以覆寫任何前台樣式（例如 <code>.category{border-style:solid}</code>）。留空代表不使用。</p>
+        <textarea id="custom-css" spellcheck="false" placeholder="/* 例如： */&#10;.composer button{ letter-spacing:2px; }&#10;.brand-mark{ font-family:Georgia,serif; }"></textarea>
+      </div>
+    </section>
+
+    <section class="preview">
+      <div class="preview-bar">
+        <strong>前台即時預覽</strong>
+        <div>
+          <button class="chip active" data-view="desktop" type="button">桌機</button>
+          <button class="chip" data-view="mobile" type="button">手機</button>
+          <button id="preview-reload" class="chip" type="button">重新整理</button>
+        </div>
+      </div>
+      <div class="preview-stage" id="preview-stage">
+        <iframe id="preview" src="/" title="前台預覽"></iframe>
+      </div>
+    </section>
+  </div>
+  <p id="toast" class="toast" hidden></p>
+</div>
+
+<script src="/static/design-admin.js?v=20260907" defer></script>
+</body></html>
