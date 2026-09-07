@@ -1,0 +1,55 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>常見問題管理・校務問答</title><link rel="stylesheet" href="/static/admin.css?v=20260907a"><link rel="stylesheet" href="/static/faq-admin.css?v=20260907a"></head><body><main>
+
+<header><div><small>校務問答</small><h1>常見問題管理</h1><p>匯入試算表、逐筆編輯 FAQ；存檔後前台分類與 AI 回答會立即使用新資料。</p></div><div class="header-actions"><a href="/admin">需求單後台</a><a href="/" target="_blank" rel="noopener">前台問答 ↗</a><button id="export">匯出 CSV</button><button id="logout" hidden>登出</button></div></header>
+
+<section id="login" class="login"><h2>管理者登入</h2><p>使用與需求單後台相同的管理密碼。</p><form id="login-form"><input id="token" type="password" placeholder="管理密碼" autocomplete="current-password" required><button>登入</button></form><p id="login-error"></p></section>
+
+<div id="app" hidden>
+
+<section class="stats" id="stats"></section>
+
+<section class="panel">
+<div class="section-title"><h2>匯入常見問題</h2><small>Google 試算表、CSV／Excel 檔，或直接貼上</small></div>
+<div class="tabs"><button class="tab active" type="button" data-source="url">Google 試算表網址</button><button class="tab" type="button" data-source="file">上傳檔案</button><button class="tab" type="button" data-source="text">直接貼上</button></div>
+
+<div class="source" data-panel="url"><label>試算表網址<input id="src-url" type="url" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0"></label><p class="hint">試算表需設為「知道連結的任何人皆可檢視」。系統會讀取網址中 <code>gid</code> 指定的工作表，未指定時讀第一個工作表。</p></div>
+<div class="source" data-panel="file" hidden><label>選擇檔案<input id="src-file" type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm"></label><p class="hint">支援 .csv、.tsv、.xlsx。<button type="button" class="linkish" id="template">下載欄位範本 CSV</button></p></div>
+<div class="source" data-panel="text" hidden><label>貼上內容<textarea id="src-text" rows="6" placeholder="在 Google 試算表整片選取後複製，連同標題列一起貼在這裡"></textarea></label><p class="hint">第一列必須是標題列，且要有「問題」與「建議答案」兩欄。</p></div>
+
+<p class="hint fields-hint">可辨識的欄位標題：<b>問題編號</b>、<b>分類</b>、<b>問題</b>、<b>建議答案</b>、<b>依據／來源連結</b>、<b>主責單位</b>、<b>信箱</b>（也接受 id／category／question／answer／url／keywords 等英文標題）。只有<b>問題</b>與<b>建議答案</b>是必填。</p>
+
+<div class="import-actions"><button id="preview" class="save" type="button">讀取並預覽</button><span id="import-msg"></span></div>
+
+<div id="preview-box" hidden>
+  <div class="preview-head">
+    <div class="counts" id="counts"></div>
+    <div class="modes"><label><input type="radio" name="mode" value="merge" checked>合併更新<small>同編號覆蓋，未出現在這份資料的舊題目保留</small></label><label><input type="radio" name="mode" value="replace">完全取代<small>清空知識庫，只留下這份資料</small></label></div>
+  </div>
+  <p class="hint" id="mapping"></p>
+  <div class="table-wrap preview-wrap"><table><thead><tr><th class="pick"><input type="checkbox" id="pick-all" checked></th><th>列</th><th>編號</th><th>分類</th><th>問題</th><th>建議答案</th><th>主責單位</th><th>處理方式</th></tr></thead><tbody id="preview-rows"></tbody></table></div>
+  <div class="import-actions"><button id="commit" class="save" type="button">確認匯入</button><button id="cancel" type="button">取消</button><span id="commit-msg"></span></div>
+</div>
+</section>
+
+<section class="panel">
+<div class="section-title"><h2>所有常見問題</h2><span id="count"></span></div>
+<div class="list-toolbar"><input id="search" type="search" placeholder="搜尋編號、問題、答案或單位"><select id="category-filter"><option value="">所有分類</option></select><select id="office-filter"><option value="">所有主責單位</option></select><button id="add" class="save" type="button">＋ 新增一筆</button><button id="reindex" type="button">重建向量</button></div>
+<div class="table-wrap"><table><thead><tr><th>編號</th><th>分類</th><th>問題／建議答案</th><th>主責單位</th><th>來源</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="pager"><button id="prev" type="button">← 上一頁</button><span id="page-info"></span><button id="next" type="button">下一頁 →</button></div>
+</section>
+
+</div></main>
+
+<dialog id="editor"><form id="edit-form">
+<div class="detail-head"><div><small id="edit-mode"></small><h2 id="edit-title">編輯常見問題</h2></div><button type="button" id="edit-close">×</button></div>
+<div class="edit-grid"><label>問題編號<input id="f-id" placeholder="留空自動編號"></label><label>分類<input id="f-category" list="category-list"></label><label>主責單位<input id="f-office" list="office-list"></label><label>信箱<input id="f-email" type="email" placeholder="xxx@mail.shu.edu.tw"></label></div>
+<label>問題<input id="f-question" required maxlength="500"></label>
+<label>建議答案<textarea id="f-answer" rows="8" required></textarea></label>
+<label>依據／來源連結<input id="f-url" placeholder="https://"></label>
+<label>關鍵字<input id="f-keywords" placeholder="留空會自動使用「分類＋主責單位」"></label>
+<p id="edit-msg"></p>
+<div class="edit-actions"><button type="button" id="delete" class="danger">刪除這筆</button><button class="save" type="submit">儲存並更新向量</button></div>
+</form></dialog>
+
+<datalist id="category-list"></datalist><datalist id="office-list"></datalist>
+<script src="/static/faq-admin.js?v=20260907a"></script></body></html>

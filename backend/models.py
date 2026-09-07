@@ -1,3 +1,5 @@
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -83,7 +85,8 @@ class MailSettingsRequest(BaseModel):
     server: str = Field(default="smtp.gmail.com", max_length=200)
     port: int = Field(default=587, ge=1, le=65535)
     username: str = Field(default="", max_length=200)
-    from_name: str = Field(default="校務 FAQ 工單系統", max_length=100)
+    from_name: str = Field(default="校務AI系統", max_length=100)
+    subject_tag: str = Field(default="校務AI系統", max_length=100)
     password: str = Field(default="", max_length=200)
     offices: dict[str, str] = Field(default_factory=dict)
     student_recipients: list[str] = Field(default_factory=list, max_length=20)
@@ -95,3 +98,24 @@ class MailTestRequest(BaseModel):
 
 class OfficeMailRequest(BaseModel):
     email: str = Field(min_length=3, max_length=200)
+
+
+class FaqUpsertRequest(BaseModel):
+    id: str = Field(default="", max_length=80)
+    category: str = Field(default="", max_length=100)
+    question: str = Field(min_length=1, max_length=500)
+    answer: str = Field(min_length=1, max_length=8000)
+    url: str = Field(default="", max_length=500)
+    keywords: str = Field(default="", max_length=500)
+    office: str = Field(default="", max_length=100)
+    email: str = Field(default="", max_length=200)
+
+
+class FaqSourceRequest(BaseModel):
+    url: str = Field(default="", max_length=1000)
+    text: str = Field(default="", max_length=2_000_000)
+
+
+class FaqImportRequest(BaseModel):
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=5000)
+    mode: Literal["merge", "replace"] = "merge"

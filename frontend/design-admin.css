@@ -3,6 +3,7 @@
   font-family:"Segoe UI","Microsoft JhengHei",sans-serif;color:var(--ink);
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;min-height:100vh;background:linear-gradient(135deg,#eeeae4,#ddd8d0);color:var(--ink)}
 
 /* ---------- 登入 ---------- */
@@ -73,6 +74,22 @@ body{margin:0;min-height:100vh;background:linear-gradient(135deg,#eeeae4,#ddd8d0
 #custom-css{width:100%;min-height:calc(100vh - 320px);border:1.5px solid #ccc4ba;border-radius:11px;padding:14px;font:13px/1.7 ui-monospace,Consolas,"Courier New",monospace;background:#fdfcfa;resize:vertical}
 #custom-css:focus{outline:0;border-color:var(--accent)}
 
+/* ---------- 原始 CSS 檔編輯 ---------- */
+.file-picker{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+.file-chip{border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:700 12.5px inherit;padding:8px 13px;cursor:pointer;display:flex;align-items:center;gap:7px}
+.file-chip:hover{border-color:var(--accent)}
+.file-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.file-chip em{font-style:normal;font-weight:600;font-size:11px;opacity:.75}
+.file-chip .dot{width:7px;height:7px;border-radius:50%;background:#d98b2b;display:none}
+.file-chip.changed .dot{display:block}
+.file-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:9px;padding-bottom:9px;border-bottom:1px dashed #c9c1b7}
+.file-title strong{display:block;font-size:15px;font-family:ui-monospace,Consolas,monospace}
+.file-title small{color:var(--muted);font-size:12px}
+.file-actions{display:flex;gap:8px}
+.file-actions button:disabled{opacity:.45;cursor:not-allowed}
+#file-editor{width:100%;min-height:calc(100vh - 400px);border:1.5px solid #ccc4ba;border-radius:11px;padding:14px;font:12.5px/1.65 ui-monospace,Consolas,"Courier New",monospace;background:#fdfcfa;resize:vertical;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+#file-editor:focus{outline:0;border-color:var(--accent)}
+
 /* ---------- 預覽區 ---------- */
 .preview{display:flex;flex-direction:column;min-width:0;min-height:0;background:#e6e1da}
 .preview-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;background:var(--paper);border-bottom:1.5px solid var(--line);flex-wrap:wrap}
@@ -92,6 +109,6 @@ body{margin:0;min-height:100vh;background:linear-gradient(135deg,#eeeae4,#ddd8d0
   .editor{border-right:0;border-bottom:2px solid var(--line)}
   .tab-panel{max-height:60vh}
   .preview-stage{height:70vh}
-  #custom-css{min-height:300px}
+  #custom-css,#file-editor{min-height:300px}
   .field{grid-template-columns:1fr;gap:5px}
 }

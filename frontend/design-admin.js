@@ -193,6 +193,7 @@
           + String(i + 1).padStart(2, '0') + '</span>' + esc(row.label) + '</button>';
       }).join('');
     }
+    applyRawPreview();
   }
 
   function schedulePreview() {
@@ -336,6 +337,126 @@
     var color = document.querySelector('[data-color-for="' + key + '"]');
     if (color && /^#[0-9a-fA-F]{6}$/.test(String(value))) color.value = value;
   }
+
+  /* ---------------- 原始 CSS 檔編輯 ---------------- */
+  var cssFiles = [], cssLoaded = false, currentFile = '', savedContent = '', rawTimer = null;
+
+  function fileDirty() {
+    return !!currentFile && $('#file-editor').value !== savedContent;
+  }
+
+  function renderFileChips() {
+    $('#file-picker').innerHTML = cssFiles.map(function (f) {
+      var cls = 'file-chip' + (f.name === currentFile ? ' active' : '') + (f.modified ? ' changed' : '');
+      return '<button type="button" class="' + cls + '" data-file="' + esc(f.name) + '" title="' + esc(f.label) + '">'
+        + '<span class="dot"></span>' + esc(f.name) + ' <em>' + Math.round(f.bytes / 1024 * 10) / 10 + ' KB</em></button>';
+    }).join('');
+  }
+
+  async function loadCssList() {
+    try {
+      var r = await fetch('/api/design/css', { headers: headers() });
+      if (!r.ok) throw new Error('讀取失敗');
+      cssFiles = (await r.json()).files || [];
+      cssLoaded = true;
+      renderFileChips();
+      if (!currentFile && cssFiles.length) openFile(cssFiles[0].name);
+    } catch (err) { toast('讀取 CSS 檔清單失敗', true); }
+  }
+
+  async function openFile(name) {
+    if (fileDirty() && !confirm('「' + currentFile + '」有尚未儲存的修改，要放棄並切換嗎？')) return;
+    try {
+      var r = await fetch('/api/design/css/' + encodeURIComponent(name), { headers: headers() });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || '讀取失敗');
+      currentFile = name;
+      savedContent = d.content;
+      $('#file-editor').value = d.content;
+      $('#file-name').textContent = d.name;
+      $('#file-label').textContent = d.label + (d.modified ? '　·　已被修改過' : '');
+      $('#file-save').disabled = false;
+      $('#file-restore').disabled = !d.has_backup;
+      renderFileChips();
+      applyRawPreview();
+    } catch (err) { toast(err.message, true); }
+  }
+
+  function applyRawPreview() {
+    if (!currentFile) return;
+    var doc = $('#preview').contentDocument;
+    if (!doc || !doc.head) return;
+    var target = null;
+    doc.querySelectorAll('link[rel="stylesheet"]').forEach(function (link) {
+      if ((link.getAttribute('href') || '').indexOf('/' + currentFile) >= 0) target = link;
+    });
+    var id = 'sc-raw-' + currentFile.replace(/[^a-z0-9]+/gi, '-');
+    var style = doc.getElementById(id);
+    if (!target) { if (style) style.remove(); return; }
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = id;
+      target.parentNode.insertBefore(style, target.nextSibling);
+    }
+    target.disabled = true;
+    style.textContent = $('#file-editor').value;
+  }
+
+  function scheduleRawPreview() {
+    clearTimeout(rawTimer);
+    rawTimer = setTimeout(applyRawPreview, 400);
+  }
+
+  $('#file-editor').addEventListener('input', scheduleRawPreview);
+
+  $('#file-save').addEventListener('click', async function () {
+    if (!currentFile) return;
+    var btn = this;
+    btn.disabled = true;
+    try {
+      var r = await fetch('/api/design/css/' + encodeURIComponent(currentFile), {
+        method: 'PUT', headers: headers(),
+        body: JSON.stringify({ content: $('#file-editor').value })
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || '儲存失敗');
+      savedContent = d.content;
+      $('#file-label').textContent = d.label + (d.modified ? '　·　已被修改過' : '');
+      $('#file-restore').disabled = !d.has_backup;
+      await loadCssList();
+      $('#preview').contentWindow.location.reload();
+      toast(currentFile + ' 已儲存並套用');
+    } catch (err) { toast(err.message, true); }
+    finally { btn.disabled = false; }
+  });
+
+  $('#file-restore').addEventListener('click', async function () {
+    if (!currentFile) return;
+    if (!confirm('確定把 ' + currentFile + ' 還原成最初的原始版本？目前的修改會全部消失。')) return;
+    try {
+      var r = await fetch('/api/design/css/' + encodeURIComponent(currentFile) + '/restore',
+        { method: 'POST', headers: headers() });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || '還原失敗');
+      savedContent = d.content;
+      $('#file-editor').value = d.content;
+      $('#file-label').textContent = d.label;
+      await loadCssList();
+      $('#preview').contentWindow.location.reload();
+      toast(currentFile + ' 已還原成原始版本');
+    } catch (err) { toast(err.message, true); }
+  });
+
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest('.file-chip');
+    if (chip) openFile(chip.dataset.file);
+    var filesTab = e.target.closest('.tab[data-tab="files"]');
+    if (filesTab && !cssLoaded) loadCssList();
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (fileDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
 
   if (token) start();
 })();

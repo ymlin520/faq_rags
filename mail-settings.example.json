@@ -2,5 +2,6 @@
   "server": "smtp.gmail.com",
   "port": 587,
   "username": "",
-  "from_name": "校務 FAQ 工單系統"
+  "from_name": "校務AI系統",
+  "subject_tag": "校務AI系統"
 }

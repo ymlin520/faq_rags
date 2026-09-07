@@ -2,12 +2,27 @@
 import json
 import re
 import secrets
+import shutil
 from datetime import datetime
+from pathlib import Path
 
 from .config import PROJECT_ROOT
 
 CONFIG_PATH = PROJECT_ROOT / "data" / "site-config.json"
 TOKEN_PATH = PROJECT_ROOT / "theme-admin-token.txt"
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
+CSS_BACKUP_DIR = PROJECT_ROOT / "data" / "css-original"
+
+# 可在後台直接編輯的原始 CSS 檔（白名單，其他檔案一律拒絕）
+CSS_FILES = {
+    "style.css": "學生前台主樣式（版面、側欄、對話框、輸入區）",
+    "llm.css": "學生前台 AI 回答與對話紀錄樣式",
+    "ticket.css": "學生前台需求單視窗與需求單提示樣式",
+    "ticket-page.css": "學生查看需求單頁樣式",
+    "office.css": "處室登入頁樣式",
+    "office-ticket.css": "處室需求單處理頁樣式",
+    "admin.css": "總管理員後台樣式",
+}
 
 DEFAULT_TEXT = {
     "page_title": "校務 FAQ 智慧問答",
@@ -21,23 +36,23 @@ DEFAULT_TEXT = {
     "history_clear": "清除",
     "sidebar_mobile_title": "常見問題",
     "section_label": "常見問題分類",
-    "section_hint": "選擇分類快速開始",
+    "section_hint": "點選分類，右側會列出該分類的常見問題",
     "sidebar_note": "找不到分類？直接輸入完整問題即可。",
     "welcome_title": "您好，我是校務 FAQ 助理",
-    "welcome_text": "請選擇分類或直接輸入問題。如果知識庫無法解答，我可以協助建立工單並轉交指定處室。",
-    "newchat_welcome_text": "請輸入您的問題；知識庫沒有答案時，您可以確認提出工單。",
+    "welcome_text": "請選擇分類或直接輸入問題。如果知識庫無法解答，我可以協助建立需求單並轉交指定處室。",
+    "newchat_welcome_text": "請輸入您的問題；知識庫沒有答案時，您可以確認提出需求單。",
     "composer_placeholder": "請輸入您的問題…",
     "submit_text": "送出 ↗",
     "disclaimer": "回答由地端 AI 依 FAQ 整理；重要規定仍請以校方最新公告為準。",
     "ticket_badge": "AI 自動分派",
-    "ticket_title": "建立服務工單",
+    "ticket_title": "建立服務需求單",
     "ticket_intro": "請留下聯絡方式與問題內容，AI 會自動判斷並送至適合的承辦處室。",
-    "ticket_subject_label": "工單主旨",
+    "ticket_subject_label": "需求單主旨",
     "ticket_desc_label": "問題說明",
     "ticket_name_label": "姓名",
     "ticket_contact_label": "電子郵件或電話",
     "ticket_cancel": "取消",
-    "ticket_submit": "送出工單",
+    "ticket_submit": "送出需求單",
 }
 
 DEFAULT_SUGGESTIONS = [
@@ -267,6 +282,99 @@ def build_css(cfg: dict = None) -> str:
     ])
 
 
+def css_path(name: str) -> Path:
+    """把檔名對應到 frontend 下的實體檔案，只允許白名單內的名稱。"""
+    if name not in CSS_FILES:
+        raise ValueError("不允許編輯這個檔案")
+    path = (FRONTEND_DIR / name).resolve()
+    if path.parent != FRONTEND_DIR.resolve():
+        raise ValueError("路徑不合法")
+    return path
+
+
+def _backup_path(name: str) -> Path:
+    return CSS_BACKUP_DIR / name
+
+
+def ensure_css_backup(name: str) -> bool:
+    """第一次修改前先把原始檔留一份，之後才能還原。"""
+    source = css_path(name)
+    target = _backup_path(name)
+    if target.exists() or not source.exists():
+        return target.exists()
+    CSS_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    return True
+
+
+def read_css_file(name: str) -> dict:
+    path = css_path(name)
+    content = path.read_text(encoding="utf-8-sig") if path.exists() else ""
+    backup = _backup_path(name)
+    return {
+        "name": name,
+        "label": CSS_FILES[name],
+        "content": content,
+        "bytes": len(content.encode("utf-8")),
+        "exists": path.exists(),
+        "modified": backup.exists() and backup.read_text(encoding="utf-8-sig") != content,
+        "has_backup": backup.exists(),
+    }
+
+
+def list_css_files() -> list:
+    rows = []
+    for name in CSS_FILES:
+        try:
+            info = read_css_file(name)
+        except Exception:
+            continue
+        info.pop("content", None)
+        rows.append(info)
+    return rows
+
+
+_VERSION_RE_CACHE = {}
+
+
+def _bump_cache_version(name: str) -> None:
+    """改完 CSS 之後更新 HTML/JS 裡的 ?v= 版本號，避免瀏覽器讀到舊的快取。"""
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    pattern = _VERSION_RE_CACHE.get(name)
+    if pattern is None:
+        pattern = re.compile(r"(?<![\w-])" + re.escape(name) + r"\?v=[^\"'\s]*")
+        _VERSION_RE_CACHE[name] = pattern
+    for path in list(FRONTEND_DIR.glob("*.html")) + list(FRONTEND_DIR.glob("*.js")):
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except Exception:
+            continue
+        updated = pattern.sub(name + "?v=" + stamp, text)
+        if updated != text:
+            path.write_text(updated, encoding="utf-8")
+
+
+def write_css_file(name: str, content: str) -> dict:
+    path = css_path(name)
+    ensure_css_backup(name)
+    text = str(content or "")
+    if len(text.encode("utf-8")) > 400000:
+        raise ValueError("檔案內容過大")
+    path.write_text(text, encoding="utf-8")
+    _bump_cache_version(name)
+    return read_css_file(name)
+
+
+def restore_css_file(name: str) -> dict:
+    path = css_path(name)
+    backup = _backup_path(name)
+    if not backup.exists():
+        raise ValueError("這個檔案沒有原始備份，可能還沒被修改過")
+    shutil.copy2(backup, path)
+    _bump_cache_version(name)
+    return read_css_file(name)
+
+
 def ensure_token() -> str:
     if TOKEN_PATH.exists():
         token = TOKEN_PATH.read_text(encoding="utf-8-sig").strip()
@@ -314,15 +422,15 @@ def text_fields() -> list:
         "composer_placeholder": "輸入框提示文字",
         "submit_text": "送出按鈕文字",
         "disclaimer": "底部免責聲明",
-        "ticket_badge": "工單視窗小標",
-        "ticket_title": "工單視窗標題",
-        "ticket_intro": "工單視窗說明",
-        "ticket_subject_label": "工單：主旨欄位",
-        "ticket_desc_label": "工單：說明欄位",
-        "ticket_name_label": "工單：姓名欄位",
-        "ticket_contact_label": "工單：聯絡方式欄位",
-        "ticket_cancel": "工單：取消按鈕",
-        "ticket_submit": "工單：送出按鈕",
+        "ticket_badge": "需求單視窗小標",
+        "ticket_title": "需求單視窗標題",
+        "ticket_intro": "需求單視窗說明",
+        "ticket_subject_label": "需求單：主旨欄位",
+        "ticket_desc_label": "需求單：說明欄位",
+        "ticket_name_label": "需求單：姓名欄位",
+        "ticket_contact_label": "需求單：聯絡方式欄位",
+        "ticket_cancel": "需求單：取消按鈕",
+        "ticket_submit": "需求單：送出按鈕",
     }
     groups = {
         "頁首與品牌": ["page_title", "brand_mark", "site_title", "site_subtitle", "beta_label", "beta_small"],
@@ -330,7 +438,7 @@ def text_fields() -> list:
                  "section_label", "section_hint", "sidebar_note"],
         "對話區": ["welcome_title", "welcome_text", "newchat_welcome_text",
                    "composer_placeholder", "submit_text", "disclaimer"],
-        "工單視窗": ["ticket_badge", "ticket_title", "ticket_intro", "ticket_subject_label",
+        "需求單視窗": ["ticket_badge", "ticket_title", "ticket_intro", "ticket_subject_label",
                      "ticket_desc_label", "ticket_name_label", "ticket_contact_label",
                      "ticket_cancel", "ticket_submit"],
     }

@@ -7,7 +7,7 @@ import re
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, Body, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -15,12 +15,13 @@ from .config import COLLECTION_NAME, PROJECT_ROOT
 from .embedding import embed_text
 from .llm_service import answer_from_faq, ollama_status, route_ticket_office
 from .knowledge_service import faq_categories, sync_resolved_ticket
+from . import faq_service
 from .analytics import add_ticket_reply, create_ticket, list_tickets, log_feedback, log_query, public_ticket, rate_ticket, record_knowledge_sync, record_student_email, record_ticket_email, stats, ticket_detail, update_ticket
 from .mail_service import (mail_status, save_office_emails, save_password, save_settings,
                            send_student_resolution_email, send_test_email, send_ticket_email)
-from .models import (AnswerResponse, FeedbackRequest, FeedbackResponse, MailSettingsRequest,
-                     MailTestRequest, OfficeMailRequest, SearchRequest, SearchResponse, TicketCreateRequest,
-                     TicketRateRequest, TicketReplyRequest, TicketUpdateRequest)
+from .models import (AnswerResponse, FaqImportRequest, FaqUpsertRequest, FeedbackRequest, FeedbackResponse,
+                     MailSettingsRequest, MailTestRequest, OfficeMailRequest, SearchRequest, SearchResponse,
+                     TicketCreateRequest, TicketRateRequest, TicketReplyRequest, TicketUpdateRequest)
 from .qdrant_service import check_connection, close_client, collection_info, search_faq
 from . import theme_service
 
@@ -50,6 +51,11 @@ def index() -> FileResponse:
 @app.get("/admin", include_in_schema=False)
 def admin_page() -> FileResponse:
     return FileResponse(frontend / "admin.html", headers={"Cache-Control": "no-store, max-age=0"})
+
+
+@app.get("/faq-admin", include_in_schema=False)
+def faq_admin_page() -> FileResponse:
+    return FileResponse(frontend / "faq-admin.html", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/office", include_in_schema=False)
@@ -125,6 +131,43 @@ def design_preview_css(payload: dict = Body(default={}), x_design_token: str = H
     if "custom_css" in payload:
         cfg["custom_css"] = str(payload["custom_css"] or "")[:20000]
     return Response(content=theme_service.build_css(cfg), media_type="text/css")
+
+
+@app.get("/api/design/css")
+def design_css_list(x_design_token: str = Header(default="")):
+    require_design(x_design_token)
+    return {"files": theme_service.list_css_files()}
+
+
+@app.get("/api/design/css/{name}")
+def design_css_get(name: str, x_design_token: str = Header(default="")):
+    require_design(x_design_token)
+    try:
+        return theme_service.read_css_file(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/api/design/css/{name}")
+def design_css_save(name: str, payload: dict = Body(default={}), x_design_token: str = Header(default="")):
+    require_design(x_design_token)
+    try:
+        info = theme_service.write_css_file(name, payload.get("content", ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info("直接編輯原始樣式檔 file=%s bytes=%d", name, info["bytes"])
+    return info
+
+
+@app.post("/api/design/css/{name}/restore")
+def design_css_restore(name: str, x_design_token: str = Header(default="")):
+    require_design(x_design_token)
+    try:
+        info = theme_service.restore_css_file(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info("還原原始樣式檔 file=%s", name)
+    return info
 
 
 @app.post("/api/design/reset")
@@ -246,7 +289,7 @@ def _sync_ticket_knowledge(ticket: dict) -> None:
         record = sync_resolved_ticket(ticket)
         record_knowledge_sync(ticket["ticket_no"], True, record["id"])
     except Exception as exc:
-        logger.exception("工單寫入知識庫失敗 ticket=%s", ticket.get("ticket_no"))
+        logger.exception("需求單寫入知識庫失敗 ticket=%s", ticket.get("ticket_no"))
         record_knowledge_sync(ticket["ticket_no"], False, f"{type(exc).__name__}: {exc}")
 
 
@@ -276,7 +319,7 @@ def email_settings_save(request: MailSettingsRequest, x_admin_token: str = Heade
         save_password(password)
     if offices:
         save_office_emails(offices)
-    logger.info("更新工單通知信箱設定 offices=%d", len(offices))
+    logger.info("更新需求單通知信箱設定 offices=%d", len(offices))
     return mail_status()
 
 
@@ -294,7 +337,7 @@ def ticket_resend_mail(ticket_no: str, x_admin_token: str = Header(default="")):
     require_admin(x_admin_token)
     ticket = ticket_detail(ticket_no)
     if not ticket:
-        raise HTTPException(status_code=404, detail="找不到工單")
+        raise HTTPException(status_code=404, detail="找不到需求單")
     sent, detail = send_ticket_email(ticket)
     record_ticket_email(ticket_no, sent, detail)
     if not sent:
@@ -315,14 +358,14 @@ def ticket_create(request: TicketCreateRequest, background_tasks: BackgroundTask
 @app.get("/api/tickets/{ticket_no}")
 def ticket_public_get(ticket_no: str, key: str):
     ticket = public_ticket(ticket_no, key)
-    if not ticket: raise HTTPException(status_code=404, detail="找不到工單或存取碼不正確")
+    if not ticket: raise HTTPException(status_code=404, detail="找不到需求單或存取碼不正確")
     return ticket
 
 
 @app.post("/api/tickets/{ticket_no}/replies")
 def ticket_public_reply(ticket_no: str, request: TicketReplyRequest):
     ticket = add_ticket_reply(ticket_no, request.access_key, request.message, request.allow_faq)
-    if not ticket: raise HTTPException(status_code=404, detail="找不到工單或存取碼不正確")
+    if not ticket: raise HTTPException(status_code=404, detail="找不到需求單或存取碼不正確")
     return ticket
 
 
@@ -332,7 +375,7 @@ def ticket_public_rate(ticket_no: str, request: TicketRateRequest):
         ticket = rate_ticket(ticket_no, request.access_key, request.rating, request.comment)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if not ticket: raise HTTPException(status_code=404, detail="找不到工單或存取碼不正確")
+    if not ticket: raise HTTPException(status_code=404, detail="找不到需求單或存取碼不正確")
     logger.info("提問單評分 ticket=%s rating=%d", ticket_no, request.rating)
     return ticket
 
@@ -364,7 +407,7 @@ def office_mail_save(request: OfficeMailRequest, x_office_token: str = Header(de
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
         raise HTTPException(status_code=422, detail="請輸入有效的電子郵件地址")
     save_office_emails({office: email})
-    logger.info("處室自行更新工單通知信箱 office=%s", office)
+    logger.info("處室自行更新需求單通知信箱 office=%s", office)
     return {"saved": True, "office": office, "email": email}
 
 
@@ -372,7 +415,7 @@ def office_mail_save(request: OfficeMailRequest, x_office_token: str = Header(de
 def office_ticket_get(ticket_no: str, x_office_token: str = Header(default="")):
     office = require_office(x_office_token)
     rows = [x for x in list_tickets(office=office) if x["ticket_no"] == ticket_no]
-    if not rows: raise HTTPException(status_code=404, detail="找不到分派給本處室的工單")
+    if not rows: raise HTTPException(status_code=404, detail="找不到分派給本處室的需求單")
     return ticket_detail(ticket_no)
 
 
@@ -381,7 +424,7 @@ def office_ticket_update(ticket_no: str, request: TicketUpdateRequest, backgroun
                          x_office_token: str = Header(default="")):
     office = require_office(x_office_token)
     rows = [x for x in list_tickets(office=office) if x["ticket_no"] == ticket_no]
-    if not rows: raise HTTPException(status_code=404, detail="找不到分派給本處室的工單")
+    if not rows: raise HTTPException(status_code=404, detail="找不到分派給本處室的需求單")
     previous_office = rows[0]["office"]
     data = request.model_dump()
     ticket = update_ticket(ticket_no, data)
@@ -400,7 +443,7 @@ def ticket_update(ticket_no: str, request: TicketUpdateRequest, background_tasks
     previous = ticket_detail(ticket_no)
     ticket = update_ticket(ticket_no, request.model_dump())
     if not ticket:
-        raise HTTPException(status_code=404, detail="找不到工單")
+        raise HTTPException(status_code=404, detail="找不到需求單")
     if previous and ticket["office"] != previous["office"]:
         background_tasks.add_task(_notify_ticket, ticket)
     if previous and ticket["status"] == "已解決" and previous["status"] != "已解決":
@@ -441,3 +484,111 @@ def tickets_csv(x_admin_token: str = Header(default="")):
 def admin_stats(days: int = 7, x_admin_token: str = Header(default="")):
     require_admin(x_admin_token)
     return stats(days)
+
+
+# ---------------------------------------------------------------- 常見問題（FAQ）後台
+
+@app.get("/api/admin/faqs")
+def faqs_list(x_admin_token: str = Header(default="")):
+    require_admin(x_admin_token)
+    return {"faqs": faq_service.list_faqs(), "summary": faq_service.summary(), "fields": faq_service.FIELDS}
+
+
+@app.post("/api/admin/faqs", status_code=201)
+def faq_create(request: FaqUpsertRequest, x_admin_token: str = Header(default="")):
+    require_admin(x_admin_token)
+    try:
+        faq = faq_service.save_faq(request.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info("FAQ 新增 id=%s", faq["id"])
+    return {"faq": faq}
+
+
+@app.put("/api/admin/faqs/{faq_id}")
+def faq_update(faq_id: str, request: FaqUpsertRequest, x_admin_token: str = Header(default="")):
+    require_admin(x_admin_token)
+    try:
+        faq = faq_service.save_faq(request.model_dump(), original_id=faq_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info("FAQ 更新 id=%s", faq["id"])
+    return {"faq": faq}
+
+
+@app.delete("/api/admin/faqs/{faq_id}")
+def faq_delete(faq_id: str, x_admin_token: str = Header(default="")):
+    require_admin(x_admin_token)
+    try:
+        faq_service.backup_csv()
+        result = faq_service.delete_faq(faq_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    logger.info("FAQ 刪除 id=%s", faq_id)
+    return result
+
+
+@app.post("/api/admin/faqs/preview")
+async def faq_import_preview(file: UploadFile | None = File(default=None), url: str = Form(default=""),
+                             text: str = Form(default=""), x_admin_token: str = Header(default="")):
+    """讀取試算表／檔案／貼上的內容，只做解析與比對，不寫入任何資料。"""
+    require_admin(x_admin_token)
+    try:
+        if file is not None and file.filename:
+            table, source = faq_service.parse_upload(await file.read(), file.filename), file.filename
+        elif url.strip():
+            table, source = faq_service.fetch_source(url), "Google 試算表"
+        elif text.strip():
+            table, source = faq_service.parse_text(text), "貼上的內容"
+        else:
+            raise ValueError("請選擇檔案、輸入試算表網址，或貼上資料")
+        records, header = faq_service.map_table(table)
+        plan = faq_service.plan_import(records)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("FAQ 匯入預覽失敗")
+        raise HTTPException(status_code=500, detail=f"讀取失敗：{exc}") from exc
+    logger.info("FAQ 匯入預覽 source=%s rows=%d", source, len(plan["rows"]))
+    return {"source": source, "header": header, **plan}
+
+
+@app.post("/api/admin/faqs/import")
+def faq_import(request: FaqImportRequest, x_admin_token: str = Header(default="")):
+    """把預覽確認過的資料寫入 faq.csv 並重新產生向量，前台立即生效。"""
+    require_admin(x_admin_token)
+    try:
+        result = faq_service.apply_import(request.rows, request.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("FAQ 匯入失敗")
+        raise HTTPException(status_code=500, detail=f"匯入失敗：{exc}") from exc
+    logger.info("FAQ 匯入完成 mode=%s created=%d updated=%d", result["mode"], result["created"], result["updated"])
+    return result
+
+
+@app.post("/api/admin/faqs/reindex")
+def faq_reindex(x_admin_token: str = Header(default="")):
+    require_admin(x_admin_token)
+    try:
+        indexed = faq_service.reindex()
+    except Exception as exc:
+        logger.exception("FAQ 重建向量失敗")
+        raise HTTPException(status_code=500, detail=f"重建失敗：{exc}") from exc
+    logger.info("FAQ 向量重建完成 count=%d", indexed)
+    return {"indexed": indexed}
+
+
+@app.get("/api/admin/faqs.csv")
+def faqs_csv(x_admin_token: str = Header(default="")):
+    require_admin(x_admin_token)
+    return StreamingResponse(iter([faq_service.export_csv()]), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename=faq.csv"})
+
+
+@app.get("/api/admin/faqs/template.csv")
+def faqs_template_csv(x_admin_token: str = Header(default="")):
+    require_admin(x_admin_token)
+    return StreamingResponse(iter([faq_service.template_csv()]), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename=faq-template.csv"})

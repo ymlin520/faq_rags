@@ -19,8 +19,14 @@ public-url.txt
 cloudflared.exe
 backup/
 各處室與後台連結密碼.txt
+各處室連結與密碼.txt
 *.txt.bak
 theme-admin-token.txt
 data/site-config.json
 frontend/_selftest*
 frontend/__selftest*
+data/faq-backups/
+data/css-original/
+
+# temporary working backups (Claude session)
+*.bak-*

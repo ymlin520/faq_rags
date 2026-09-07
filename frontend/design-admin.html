@@ -1,6 +1,6 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>前台外觀後台 · 校務 FAQ</title>
-<link rel="stylesheet" href="/static/design-admin.css?v=20260907">
+<link rel="stylesheet" href="/static/design-admin.css?v=20260907c">
 </head><body>
 
 <div id="login" class="login-wrap">
@@ -32,6 +32,7 @@
         <button class="tab" data-tab="theme" type="button">顏色與樣式</button>
         <button class="tab" data-tab="lists" type="button">分類與快捷</button>
         <button class="tab" data-tab="css" type="button">自訂 CSS</button>
+        <button class="tab" data-tab="files" type="button">原始 CSS 檔</button>
       </nav>
 
       <div class="tab-panel" data-panel="text">
@@ -67,6 +68,19 @@
         <p class="hint">這裡寫的 CSS 會加在最後面，可以覆寫任何前台樣式（例如 <code>.category{border-style:solid}</code>）。留空代表不使用。</p>
         <textarea id="custom-css" spellcheck="false" placeholder="/* 例如： */&#10;.composer button{ letter-spacing:2px; }&#10;.brand-mark{ font-family:Georgia,serif; }"></textarea>
       </div>
+
+      <div class="tab-panel" data-panel="files" hidden>
+        <p class="hint">這裡是網站原本的 CSS 原始檔，可以整份直接改。第一次儲存前系統會自動備份原始版本，隨時可以按「還原原始檔」救回來。<br>注意：這裡改的是真正的檔案，會蓋掉原本的樣式；只想加東西的話用「自訂 CSS」比較安全。</p>
+        <div class="file-picker" id="file-picker"></div>
+        <div class="file-head">
+          <div class="file-title"><strong id="file-name">請先選擇檔案</strong><small id="file-label"></small></div>
+          <div class="file-actions">
+            <button id="file-restore" class="ghost danger" type="button" disabled>還原原始檔</button>
+            <button id="file-save" class="primary" type="button" disabled>儲存這個檔案</button>
+          </div>
+        </div>
+        <textarea id="file-editor" spellcheck="false" placeholder="請先在上方選擇要編輯的 CSS 檔案。"></textarea>
+      </div>
     </section>
 
     <section class="preview">
@@ -86,5 +100,5 @@
   <p id="toast" class="toast" hidden></p>
 </div>
 
-<script src="/static/design-admin.js?v=20260907" defer></script>
+<script src="/static/design-admin.js?v=20260907c" defer></script>
 </body></html>

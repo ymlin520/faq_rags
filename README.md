@@ -14,6 +14,7 @@
 - [系統需求](#系統需求)
 - [快速開始](#快速開始)（安裝、啟動、密碼位置、停止）
 - [FAQ CSV](#faq-csv)
+- [常見問題管理後台](#常見問題管理後台)（匯入試算表、逐筆編輯）
 - [工單流程](#工單流程)
 - [Email 設定](#email-設定)
 - [Cloudflare 臨時公開](#cloudflare-臨時公開)
@@ -66,6 +67,8 @@ Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
 - 可修改工單狀態、回答、承辦人及承辦處室。
 - 可設定各處室通知信箱，以及一個或多個學生回覆完成通知信箱。
 - 可新增、移除學生通知收件人、測試寄信及匯出 CSV。
+- 可從 Google 試算表、CSV／Excel 檔或直接貼上匯入常見問題，匯入前先預覽新增與覆蓋的筆數。
+- 可在後台逐筆檢視、搜尋、修改或刪除常見問題，存檔後前台與 AI 立即使用新資料。
 
 ### 外觀設定端
 
@@ -192,8 +195,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 FAQ 來源是 `data/faq.csv`，請使用 UTF-8 或 UTF-8 with BOM。
 
 ```csv
-id,category,question,answer,url,keywords
-Q001,選課相關,如何加退選課程？,請登入選課系統辦理加退選,https://example.edu.tw/course,加退選 選課 教務處
+id,category,question,answer,url,keywords,office,email
+Q001,選課相關,如何加退選課程？,請登入選課系統辦理加退選,https://example.edu.tw/course,加退選 選課 教務處,教務處,course@example.edu.tw
 ```
 
 | 欄位 | 必填 | 說明 |
@@ -203,9 +206,11 @@ Q001,選課相關,如何加退選課程？,請登入選課系統辦理加退選,
 | `question` | 是 | FAQ 問題 |
 | `answer` | 是 | 正式回答 |
 | `url` | 否 | 官方公告或原始資料連結 |
-| `keywords` | 否 | 處室、同義詞及補充關鍵字 |
+| `keywords` | 否 | 處室、同義詞及補充關鍵字；留空會自動填入「分類＋主責單位」 |
+| `office` | 否 | 主責單位 |
+| `email` | 否 | 該題的承辦信箱 |
 
-修改後執行：
+平常請直接用「常見問題管理」後台維護，不需要停機。若手動改過 CSV，再執行：
 
 ```powershell
 .\stop.ps1
@@ -214,6 +219,46 @@ Q001,選課相關,如何加退選課程？,請登入選課系統辦理加退選,
 ```
 
 這會重建 FAQ 向量資料，不會刪除工單 SQLite 資料。
+
+## 常見問題管理後台
+
+網址 <http://127.0.0.1:8001/faq-admin>，用管理員密碼登入（與工單後台同一組，也可從工單後台上方的「常見問題管理」進入）。
+
+### 匯入
+
+三種來源都會先做預覽，確認後才寫入：
+
+1. **Google 試算表網址**：貼上編輯網址即可，系統會自動轉成 CSV 匯出網址並讀取網址中 `gid` 指定的工作表。試算表需設為「知道連結的任何人皆可檢視」。
+2. **上傳檔案**：`.csv`、`.tsv`、`.xlsx`。
+3. **直接貼上**：在試算表整片複製後貼上（含標題列）。
+
+標題列會自動對應欄位，中英文皆可：
+
+| 試算表標題 | 對應欄位 |
+|---|---|
+| 問題編號／編號／序號／`id` | `id` |
+| 分類／類別／`category` | `category` |
+| 問題／題目／`question` | `question` |
+| 建議答案／答案／回答／`answer` | `answer` |
+| 依據／來源連結、網址、`url` | `url` |
+| 主責單位／承辦單位／處室 | `office` |
+| 信箱／電子信箱／`email` | `email` |
+| 關鍵字／`keywords` | `keywords` |
+
+只有「問題」與「建議答案」是必填，缺這兩欄的列會在預覽中標成「略過」。純數字的問題編號會轉成 `Q001` 這種固定 ID；沒有編號時自動接續編號。
+
+預覽表可逐列勾選，並選擇匯入模式：
+
+- **合併更新**（預設）：同編號覆蓋，沒出現在這份資料的舊題目保留。
+- **完全取代**：清空知識庫，只留下這次匯入的資料。
+
+每次匯入前會自動備份舊的 `data/faq.csv` 到 `data/faq-backups/`，保留最近 20 份。
+
+### 編輯與刪除
+
+清單支援關鍵字搜尋、分類與主責單位篩選、分頁。點「編輯」可修改全部欄位，也可以「＋ 新增一筆」或刪除。存檔後同時更新 `data/faq.csv` 與向量庫，前台搜尋與 AI 回答立即使用新內容，不需要重啟。
+
+「重建向量」會用目前 CSV 重算全部向量，資料異常時使用。
 
 ## 工單流程
 
@@ -320,6 +365,7 @@ rags/
 │  ├─ llm_service.py          Ollama 回答與處室分派
 │  ├─ mail_service.py         Gmail／SMTP 通知
 │  ├─ knowledge_service.py    已解決工單回寫 FAQ 與分類清單
+│  ├─ faq_service.py          FAQ 匯入、編輯與向量同步
 │  └─ theme_service.py        前台外觀與文案設定
 ├─ frontend/                  學生、處室及管理員頁面
 ├─ scripts/                   匯入、搜尋及健康檢查
@@ -352,6 +398,15 @@ rags/
 | `POST` | `/api/design/reset` | 還原預設外觀 |
 | `GET` | `/api/admin/stats` | 管理統計 |
 | `GET` | `/api/admin/tickets.csv` | 匯出工單 CSV |
+| `GET` | `/api/admin/faqs` | 所有常見問題與統計 |
+| `POST` | `/api/admin/faqs` | 新增一筆常見問題 |
+| `PUT` | `/api/admin/faqs/{id}` | 修改指定常見問題 |
+| `DELETE` | `/api/admin/faqs/{id}` | 刪除常見問題（含向量） |
+| `POST` | `/api/admin/faqs/preview` | 解析試算表／檔案／貼上內容並比對，不寫入 |
+| `POST` | `/api/admin/faqs/import` | 匯入預覽確認過的資料（`merge` 或 `replace`） |
+| `POST` | `/api/admin/faqs/reindex` | 依現有 CSV 重建全部向量 |
+| `GET` | `/api/admin/faqs.csv` | 匯出常見問題 CSV |
+| `GET` | `/api/admin/faqs/template.csv` | 下載匯入欄位範本 |
 
 ## 健康檢查
 

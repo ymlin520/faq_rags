@@ -34,7 +34,7 @@ def route_ticket_office(query: str, description: str = "") -> str:
         response = requests.post(
             f"{OLLAMA_URL}/api/chat",
             json={"model": OLLAMA_MODEL, "stream": False, "messages": [
-                {"role": "system", "content": "你是校務工單分流器。只能從指定處室名稱中選一個，僅輸出處室名稱，不要解釋。"},
+                {"role": "system", "content": "你是校務需求單分流器。只能從指定處室名稱中選一個，僅輸出處室名稱，不要解釋。"},
                 {"role": "user", "content": f"處室：{'、'.join(OFFICES)}\n問題：{text}"}],
                 "options": {"temperature": 0, "num_predict": 30}, "keep_alive": "10m"}, timeout=30)
         response.raise_for_status()

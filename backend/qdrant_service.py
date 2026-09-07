@@ -70,6 +70,13 @@ def upsert_faqs(records: Iterable[dict[str, Any]], vectors: list[list[float]]) -
         get_client().upsert(collection_name=COLLECTION_NAME, points=points, wait=True)
 
 
+def delete_faqs(ids: Iterable[Any]) -> None:
+    points = [point_id(raw_id) for raw_id in ids]
+    if points:
+        get_client().delete(collection_name=COLLECTION_NAME,
+                            points_selector=models.PointIdsList(points=points), wait=True)
+
+
 def search_faq(vector: list[float], limit: int) -> list[dict[str, Any]]:
     response = get_client().query_points(
         collection_name=COLLECTION_NAME,
