@@ -8,9 +8,9 @@
 
 ## 系統畫面
 
-以下各章節皆附上實際操作畫面。畫面取自展示環境；密碼、Email、OAuth 權杖與工單存取碼不會出現在圖片中。
+以下各章節皆附上實際操作畫面。畫面取自展示環境；密碼、Email、OAuth 權杖與工單存取碼不會出現在圖片中。**每張圖片都可點擊開啟高解析度原圖。**
 
-![校務 FAQ 智慧問答首頁](docs/images/01-student-home.png)
+[![校務 FAQ 智慧問答首頁](docs/images/01-student-home.png)](docs/images/01-student-home.png)
 
 ## 目錄
 
@@ -55,9 +55,9 @@ Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
 4. 找不到答案時，畫面會出現「確認提出需求單」。確認問題內容後即可送交承辦處室。
 5. 送出後請保存畫面提供的查詢資訊，以便之後查看承辦處室與處理進度。
 
-![學生選擇分類或輸入問題](docs/images/01-student-home.png)
+[![學生選擇分類或輸入問題](docs/images/01-student-home.png)](docs/images/01-student-home.png)
 
-![學生提問、找不到答案及需求單流程](docs/images/student-frontend-overview.png)
+[![學生提問、找不到答案及需求單流程](docs/images/student-frontend-overview.png)](docs/images/student-frontend-overview.png)
 
 - 側欄分類直接讀取 `data/faq.csv` 的實際分類（`GET /api/categories`），點選分類後在對話區列出該類常見問題，不需自行輸入。
 - 也可以直接用自然語句搜尋 FAQ。
@@ -78,7 +78,7 @@ Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
 4. 開啟需求單，填寫正式回答；屬於本處室時可結案，不屬於本處室時選擇正確單位轉派。
 5. 需要變更通知地址時，只能修改本處室的 Email。
 
-![處室承辦人登入入口](docs/images/02-office-login.png)
+[![處室承辦人登入入口](docs/images/02-office-login.png)](docs/images/02-office-login.png)
 
 - 每個處室使用不同的專屬密碼登入，只能查看自己的工單。
 - 可依待處理、處理中及已解決篩選。
@@ -97,7 +97,7 @@ Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
 4. 進入 Email 設定，填入各處室通知信箱與學生回覆完成通知信箱；可先使用測試寄信確認設定。
 5. 需要備份報表時，按「匯出 CSV」。
 
-![總管理員登入與後台入口](docs/images/03-admin-login.png)
+[![總管理員登入與後台入口](docs/images/03-admin-login.png)](docs/images/03-admin-login.png)
 
 - 查看所有處室、所有狀態的工單。
 - 查看提問數、實際轉單數、轉單率、結案數及平均處理時間。
@@ -118,7 +118,7 @@ Set-ExecutionPolicy -Scope Process Bypass; .\setup.ps1; .\start.ps1
 3. 使用即時預覽確認學生端效果。
 4. 確認後再按儲存；若結果不合適，可還原預設值。
 
-![前台外觀後台登入入口](docs/images/05-design-login.png)
+[![前台外觀後台登入入口](docs/images/05-design-login.png)](docs/images/05-design-login.png)
 
 - 進入 `/design` 可用管理員密碼登入，不需改程式碼就能調整學生端外觀。
 - 可調整配色、字體、字級、圓角、按鈕與對話框樣式。
@@ -182,7 +182,7 @@ FAQ、工單及向量資料預設只存於執行系統的 Windows 電腦。不�
 
 先開啟 [GitHub 專案頁](https://github.com/ymlin520/faq_rags)，按綠色 **Code** 按鈕即可複製 Git 網址或下載 ZIP。
 
-![GitHub 專案下載位置](docs/images/00-github-download.png)
+[![GitHub 專案下載位置](docs/images/00-github-download.png)](docs/images/00-github-download.png)
 
 ```powershell
 git clone https://github.com/ymlin520/faq_rags.git
@@ -276,7 +276,7 @@ Q001,選課相關,如何加退選課程？,請登入選課系統辦理加退選,
 
 網址 <http://127.0.0.1:8001/faq-admin>，用管理員密碼登入（與工單後台同一組，也可從工單後台上方的「常見問題管理」進入）。
 
-![常見問題管理登入入口](docs/images/04-faq-admin-login.png)
+[![常見問題管理登入入口](docs/images/04-faq-admin-login.png)](docs/images/04-faq-admin-login.png)
 
 ### 完整維護步驟
 
@@ -446,7 +446,7 @@ rags/
 
 啟動服務後開啟 `/docs`，可展開各 API 查看參數、回應格式並進行測試。需要管理權限的 API 必須帶入對應權杖，請勿把真實權杖放進公開截圖或提交至 GitHub。
 
-![FastAPI Swagger API 文件](docs/images/06-api-docs.png)
+[![FastAPI Swagger API 文件](docs/images/06-api-docs.png)](docs/images/06-api-docs.png)
 
 | 方法 | 路徑 | 說明 |
 |---|---|---|
